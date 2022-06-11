@@ -1,0 +1,273 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,Rmd
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.13.8
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+```{python}
+---
+output: github_document
+---
+```
+
+```{python}
+# Counterfeit detection
+```
+
+The task in this assignment is to detect the  counterfeit banknotes. The data set is based on [banknote authentication Data Set ](https://archive.ics.uci.edu/ml/datasets/banknote+authentication#) from UCI Machine Learning repository. The first three columns denote different parameters obtained from the photographs of the banknotes and last colum provides the label. Frankly as the dataset does not have any description I don't know  which labels corresponds to real and which to counterfeited banknotes. let's assume that label one (positive) denotes the clounterfeits. The set  "banknote_authentication.csv" can be found in the data  directory.
+
+```{python}
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.stats as st
+import scrapbook as sb
+```
+
+```{python}
+import  matplotlib.pyplot as plt
+ # from classification lecture
+# %matplotlib inline
+fig_width = 15
+fig_height = 10
+
+plt.rcParams['figure.figsize']=(fig_width,fig_height)
+```
+
+Please insert you  firstname  and name below
+
+```{python}
+sb.glue("Who", ["Paweł", "Kapusta"])
+```
+
+```{python tags=c()}
+from  sklearn.model_selection import train_test_split
+seed = 31287
+```
+
+```{python}
+data = pd.read_csv('data/banknotes_data.csv')
+```
+
+```{python tags=c()}
+data.head()
+```
+
+```{python tags=c("skip")}
+data.describe()
+```
+
+```{python tags=c("skip")}
+data.info()
+```
+
+```{python tags=c()}
+data_train, data_test = train_test_split(data, test_size=0.2, shuffle=True, stratify=data.loc[:,'counterfeit'], random_state=seed)
+```
+
+```{python tags=c()}
+lbls_train = data_train['counterfeit']
+```
+
+```{python tags=c()}
+fig, ax = plt.subplots(1,4, figsize=(22,5))
+for i in range(4):
+    ax[i].hist(data_train[lbls_train==0].iloc[:,i], bins=32, histtype='step', color='blue')
+    ax[i].hist(data_train[lbls_train==1].iloc[:,i], bins=32, histtype='step', color='red')
+    ax[i].hist(data_train[lbls_train==0].iloc[:,i], bins=32, histtype='bar', color='lightblue', alpha=0.25)
+    ax[i].hist(data_train[lbls_train==1].iloc[:,i], bins=32, histtype='bar', color='orange', alpha =0.25)
+```
+
+<!-- #region tags=[] -->
+You will have to install a popular plotting library `seaborn`
+<!-- #endregion -->
+
+```{python tags=c()}
+import seaborn
+```
+
+```{python tags=c()}
+seaborn.pairplot(data_train.iloc[:,0:5], hue='counterfeit');
+```
+
+```{python tags=c()}
+len(data_train)
+```
+
+## Problem 1
+
+
+Implement Gaussian  Bayes classifier using only one feature. Which feature will you choose? Calculate the confusion matrix (normalized as to show rates), ROC AUC score and plot ROC curve. Do this bot for training and validation set. Plot both curves on the same plot. Save everything using `scrapbook`. 
+
+
+__Hint__ For calculating metrics and plotting ROC curves you may use functions from scikit-learn: `roc_curve`, `roc_auc_score` and `confusion matrix`. For estimating normal distribution parameters  use `norm.fit` `from scipy.stats`. Use `norm.pdf` for normal probability density function.
+
+```{python}
+# To be sure _t means test values
+from sklearn.metrics import roc_auc_score, roc_curve, confusion_matrix
+
+# mofidied a little function from classification 02 lecture
+def make_pdf_P_cond(labels, data):
+    """Takes labels (0,1) and a single feature and returns the conditional
+    probability distribution function of the   positive label given the feature assuming
+    normal distribution of the  feature values.
+    """
+    positives = data[labels==1]
+    negatives = data[labels==0]
+
+    pd_cond_P = st.norm(*st.norm.fit(positives))
+    pd_cond_N = st.norm(*st.norm.fit(negatives))
+    pdf_cond_P = pd_cond_P.pdf
+    pdf_cond_N = pd_cond_N.pdf
+
+    P_P = labels.mean()
+    P_N = 1-P_P
+
+    def pdf(x):
+        return pdf_cond_P(x)*P_P/(pdf_cond_P(x)*P_P+pdf_cond_N(x)*P_N)
+    return pdf
+
+pdf_F_cond_h  = make_pdf_P_cond(data_train.counterfeit==1, data_train.a0)
+
+tn, fp, fn, tp = confusion_matrix(data_train.counterfeit==1, pdf_F_cond_h(data_train.a0)>0.5, normalize='true').ravel()
+tn_t, fp_t, fn_t, tp_t = confusion_matrix(data_test.counterfeit==1, pdf_F_cond_h(data_test.a0)>0.5, normalize='true').ravel()
+fprs, tprs, thds = roc_curve(data_train.counterfeit, pdf_F_cond_h(data_train.a0))
+fprs_t, tprs_t, thds_t = roc_curve(data_test.counterfeit, pdf_F_cond_h(data_test.a0))
+auc = roc_auc_score(data_train.counterfeit, pdf_F_cond_h(data_train.a0))
+auc_t = roc_auc_score(data_test.counterfeit, pdf_F_cond_h(data_test.a0))
+
+print("Plot with train and test set:")
+fig, axes = plt.subplots(figsize=[10,10])
+axes.set_title("ROC:", fontsize=14)
+axes.set_xlabel('FPR')
+axes.set_ylabel('TPR')
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+axes.plot(fprs, tprs, color='green', label="train")
+axes.plot(fprs_t, tprs_t, color='red', label="test")
+axes.text(0.7, 0.3, "Value auc train = {:4.4f}".format(auc), fontsize=12)
+axes.text(0.7, 0.25, "Value auc test = {:4.4f}".format(auc_t), fontsize=12)
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+sb.glue('ROC',fig, "display", display=False)
+```
+
+## Problem 2
+
+
+Same as Problem 1 but now implement Gaussian Naive Bayes using two features. Compare ROC curves on the test set. What is teh improvement of AUC score on the test set?
+
+```{python pycharm={'name': '#%%\n'}}
+# mofidied a little function from classification 02 lecture
+def make_pdf_P_cond_two_features(labels, first_data, second_Data ):
+    """Takes labels (0,1) and a single feature and returns the conditional
+    probability distribution function of the   positive label given the feature assuming
+    normal distribution of the  feature values.
+    """
+    first_positive = first_data[labels==1]
+    first_negatives = first_data[labels==0]
+    second_positives = second_Data[labels==1]
+    second_negatives = second_Data[labels==0]
+
+    pdf_cond_Positive_first = st.norm(*st.norm.fit(first_positive)).pdf
+    pdf_cond_Positive_second = st.norm(*st.norm.fit(second_positives)).pdf
+    pdf_cond_Negative_first = st.norm(*st.norm.fit(first_negatives)).pdf
+    pdf_cond_Negative_second = st.norm(*st.norm.fit(second_negatives)).pdf
+    P_P = labels.mean()
+    P_N = 1-P_P
+    def pdf(ha, bmia):
+        p_prod = pdf_cond_Positive_first(ha)*pdf_cond_Positive_second(bmia)*P_P
+        n_prod = pdf_cond_Negative_first(ha)*pdf_cond_Negative_second(bmia)*P_N
+
+        return p_prod/(p_prod +n_prod)
+
+    return pdf
+
+pdf_a_cond_2  = make_pdf_P_cond_two_features(data_train.counterfeit==1, data_train.a0, data_train.a1)
+tn_t, fp_t, fn_t, tp_t = confusion_matrix(data_test.counterfeit==1, pdf_a_cond_2(data_test.a0, data_test.a1)>0.5, normalize='true').ravel()
+fprs_t_2, tprs_t_2, thds_t_2 = roc_curve(data_test.counterfeit, pdf_a_cond_2(data_test.a0, data_test.a1))
+auc_t_2 = roc_auc_score(data_test.counterfeit, pdf_a_cond_2(data_test.a0, data_test.a1))
+
+print("Plot with train and test set:")
+fig, axes = plt.subplots(figsize=[10,10])
+axes.set_title("ROC:", fontsize=14)
+axes.set_xlabel('FPR')
+axes.set_ylabel('TPR')
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+axes.plot(fprs_t, tprs_t, color='red', label="One feature")
+axes.plot(fprs_t_2, tprs_t_2, color='green', label="Two features")
+axes.text(0.7, 0.3, "Value auc train = {:4.4f}".format(auc_t_2), fontsize=12)
+axes.text(0.7, 0.25, "Value auc test = {:4.4f}".format(auc_t_2 - auc_t), fontsize=12)
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+sb.glue('ROC',fig, "display", display=False)
+
+```
+
+## Problem 3
+
+
+Same as Problem 2 but now implement Gaussian Naive Bayes using all features.
+
+```{python pycharm={'name': '#%%\n'}, active="", eval=FALSE}
+# mofidied a little function from classification 02 lecture
+def make_pdf_P_cond_all(labels, data):
+    """Takes labels (0,1) and a single feature and returns the conditional
+    probability distribution function of the   positive label given the feature assuming
+    normal distribution of the  feature values.
+    """
+    positives = labels==1
+    negatives = labels==0
+    pdf_P_a0 = st.norm(*st.norm.fit(data.a0[positives])).pdf
+    pdf_P_a1 = st.norm(*st.norm.fit(data.a1[positives])).pdf
+    pdf_P_a2 = st.norm(*st.norm.fit(data.a2[positives])).pdf
+    pdf_P_a3 = st.norm(*st.norm.fit(data.a3[positives])).pdf
+    pdf_N_a0 = st.norm(*st.norm.fit(data.a0[negatives])).pdf
+    pdf_N_a1 = st.norm(*st.norm.fit(data.a1[negatives])).pdf
+    pdf_N_a2 = st.norm(*st.norm.fit(data.a2[negatives])).pdf
+    pdf_N_a3 = st.norm(*st.norm.fit(data.a3[negatives])).pdf
+    P_P = labels.mean()
+    P_N = 1-P_P
+
+    def pdf(data):
+        p_prod = pdf_P_a0(data.a0)*pdf_P_a1(data.a1)*pdf_P_a2(data.a2)*pdf_P_a3(data.a3)*P_P
+        n_prod = pdf_N_a0(data.a0)*pdf_N_a1(data.a1)*pdf_N_a2(data.a2)*pdf_N_a3(data.a3)*P_N
+        return p_prod/(p_prod +n_prod)
+
+    return pdf
+
+pdf_1_cond_all  = make_pdf_P_cond_all(data_train.counterfeit==1, data_train)
+tn_all_t, fp_all_t, fn_all_t, tp_all_t = confusion_matrix(data_test.counterfeit==1, pdf_1_cond_all(data_test)>0.5, normalize='true').ravel()
+fprs_all_t, tprs_all_t, thds_all_t = roc_curve(data_test.counterfeit, pdf_1_cond_all(data_test))
+auc_all_t = roc_auc_score(data_test.counterfeit, pdf_1_cond_all(data_test))
+
+print("Plot with train and test set:")
+fig, axes = plt.subplots(figsize=[10,10])
+axes.set_title("ROC:", fontsize=14)
+axes.set_xlabel('FPR')
+axes.set_ylabel('TPR')
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+axes.plot(fprs_t, tprs_t, color='red', label="One feature")
+axes.plot(fprs_t_2, tprs_t_2, color='green', label="Two features")
+axes.plot(fprs_all_t, tprs_all_t, color='yellow', label="All features")
+axes.text(0.65, 0.3, "Value auc = {:4.4f}".format(auc_all_t), fontsize=12)
+axes.text(0.65, 0.25, "Value advance auc = {:4.4f}".format(auc_all_t - auc_t_2), fontsize=12)
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+sb.glue('ROC',fig, "display", display=False)
+
+```
