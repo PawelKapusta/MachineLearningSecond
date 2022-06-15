@@ -1,6 +1,7 @@
 ---
 jupyter:
   jupytext:
+    formats: ipynb,Rmd
     text_representation:
       extension: .Rmd
       format_name: rmarkdown
@@ -14,9 +15,9 @@ jupyter:
 
 # Skin segmentation 
 
-
+```{python}
 In this assignement you will train classifier to assign colors to skin or no skin classes. The data is taken from [Skin Segmentation Data Set](http://archive.ics.uci.edu/ml/datasets/Skin+Segmentation#) in the UCI Machine Learning repository.
-
+```
 
 The  data is in a plain text format and contains four columns. First three contain RGB color data  represented as integers in the range 0-255, and the last column is an integer label  with 1 representing skin and 2 representing no skin. This file we can load directly into a numpy array:
 
@@ -33,7 +34,7 @@ plt.rcParams['figure.figsize'] = (8.0, 8.0)
 Please fill your firstname and name in the cell below.
 
 ```{python}
-sb.glue('person1',['your-firstname', 'your-name'], display=True)
+sb.glue('person1',['Paweł', 'Kapusta'], display=True)
 # In case of the two-person team add second persons
 # sb.glue('person2',['your-firstname', 'your-name'])
 ```
@@ -269,4 +270,8 @@ fig = plt.figure(figsize=(12,12))
 ax = fig.add_subplot(111, projection ='3d')
 n=50000
 ax.scatter(hsv_test[:n,0],hsv_test[:n,1],hsv_test[:n,2], c=colors[lbl_test[:n]] );
+```
+
+```{python}
+
 ```
