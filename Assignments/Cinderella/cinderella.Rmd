@@ -17,6 +17,7 @@ jupyter:
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import pandas as pd
 # %matplotlib inline
 plt.rcParams["figure.figsize"] = [12,8]
 plt.rcParams["animation.html"] = "jshtml"
@@ -29,6 +30,7 @@ Data gathered by  Cinderella can be found in file "data/mixture.txt"
 
 ```{python}
 data = np.loadtxt('data/mixture.txt')
+data = pd.DataFrame(data)
 ```
 
 ```{python}
@@ -43,8 +45,38 @@ plt.hist(data,bins=32, histtype='step', density=True);
 Please redo her analysis. Estimate the number of ingredients in the mixture. Then classify each particle.
 <!-- #endregion -->
 
+```{python}
+# functions from 06 gmm clustering lecture
+from sklearn.mixture import GaussianMixture
+from sklearn.model_selection import cross_validate
+from sklearn.model_selection import train_test_split
+test_scores = {}
+start = 2
+stop = 13
+train_data, test_data = train_test_split(data, test_size=0.2)
+
+def calculate(i):
+    gm_data = GaussianMixture(n_components=i, tol=1e-5, n_init=3).fit(train_data)
+    cv = cross_validate(gm_data, train_data)
+    test_scores[i] = (-cv['test_score'].mean())
+    print(f"{i} clusters with score: {-cv['test_score'].mean():6.4f}")
+
+print("Results:")
+results = [calculate(el) for el in range(start, stop)]
+
+print("\nGenerated plot from results:")
+
+fig, axes = plt.subplots(figsize=[12,12])
+axes.set_title("Results:", fontsize=14)
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+axes.plot(range(start, stop), test_scores.values(), color='red')
+```
+
 ### Bonus question
 
 <!-- #region tags=["problem"] -->
-Not knowing the real labels, how can you estimate  the accuracy of this classifier ? 
+Not knowing the real labels, how can you estimate  the accuracy of this classifier ?
 <!-- #endregion -->
