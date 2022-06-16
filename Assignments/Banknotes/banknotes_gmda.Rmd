@@ -1,19 +1,21 @@
 ---
 jupyter:
   jupytext:
+    formats: ipynb,Rmd
     text_representation:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
       jupytext_version: 1.13.8
   kernelspec:
-    display_name: Python 3 (ipykernel)
+    display_name: Python 3
     language: python
     name: python3
 ---
 
+```{python}
 # Counterfeit detection
-
+```
 
 The task in this assignment is to detect the  counterfeit banknotes. The data set is based on [banknote authentication Data Set ](https://archive.ics.uci.edu/ml/datasets/banknote+authentication#) from UCI Machine Learning repository.  You have already used this set but this time I have removed  the first column. The set  `banknote_authentication.csv` can be found in the `data`  directory.
 
@@ -23,6 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 import scrapbook as sb
+import asynchat
 ```
 
 <!-- #region tags=["skip"] -->
@@ -46,16 +49,47 @@ data.head()
 Perform the Quadratic Discriminant Analysis on this set. Calculate the confusion matrix, AUC score and plot the ROC curve. Please use `scrapbook` to store your results. 
 
 ```{python}
-sb.glue('A_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc'], display=True)
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix, f1_score, precision_score
+from mchlearn.plotting import roc_plot, add_roc_curve
+
+seed = 31287 # from previous banknotes
+
+train_data, test_data = train_test_split(data, test_size=0.2, stratify=data['counterfeit'], random_state=seed)
+quadratic_discriminant_analysis = QuadraticDiscriminantAnalysis()
+quadratic_discriminant_analysis.fit(train_data.loc[:,'a1' : 'a3'], train_data['counterfeit'])
+proba_test = quadratic_discriminant_analysis.predict_proba(test_data.loc[:,'a1':'a3'])[:,1]
+fprs, tprs, thds = roc_curve(test_data['counterfeit'], proba_test)
+auc = roc_auc_score(test_data['counterfeit'], proba_test)
+tnr, fpr, fnr, tpr = confusion_matrix(test_data['counterfeit'], proba_test>0.5, normalize='true').ravel()
+f1_s = f1_score(test_data['counterfeit'], proba_test>0.5)
+precision_s = precision_score(test_data['counterfeit'], proba_test>0.5)
+sb.glue('B_scores',[tnr, fpr, fnr, tpr, precision_s, f1_s, auc], display=True)
+
+```
+
+```{python pycharm={'name': '#%%\n'}}
+
 ```
 
 also please save the ROC plot
 
 ```{python}
-fig, ax = plt.subplots()
-#plot ROC
-ax.plot([0,1],[0,1]);
-sb.glue('A_ROC',fig, "display", display=False);
+print("Plot:")
+fig, axes = plt.subplots(figsize=[12,12])
+axes.set_title("ROC:", fontsize=14)
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.set_xlabel('FPR')
+axes.set_ylabel('TPR')
+add_roc_curve(test_data['counterfeit'], proba_test, name='QDA', ax=axes, color='yellow')
+axes.legend(title='AUC')
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+axes.plot([0,1],[0,1], linewidth=3, linestyle='--', color='gray')
+sb.glue('A_ROC',fig, "display", display=False)
+
+
 ```
 
 ### B.
@@ -64,16 +98,81 @@ sb.glue('A_ROC',fig, "display", display=False);
 Perform Gaussian Mixture Discriminant Analysis on this set as described in the `gaussian_mixture_model_EM_algorithm` notebook. Use two components for positives and two components for negatives. Calculate the confusion matrix, AUC score and plot the ROC curve. 
 
 ```{python}
-sb.glue('B_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc'], display=True)
+from sklearn.mixture import GaussianMixture
+
+negative = train_data[train_data['counterfeit']==0]
+positive = train_data[train_data['counterfeit']==1]
+
+#Functions from 05 gaussian mixture model EM algorithm lecture
+def make_pdf(cmp):
+    """
+    Takes a GaussianMixture object and returns corresponding
+    probability distribution function
+    """
+    n_cmp = cmp.n_components
+    dists = [st.multivariate_normal(cmp.means_[i], cmp.covariances_[i]) for i in range(n_cmp)]
+    def pdf(x):
+        p = 0.0
+        for i in range(n_cmp):
+            p+= cmp.weights_[i]*dists[i].pdf(x)
+        return p
+
+    return pdf
+
+
+def make_predict_proba(cmp0, cmp1, pi0=0.5, pi1=.5):
+    """
+    Takes two GaussianMixture object and corresponding priors and returns
+    pdf for conditional probability P(c=1|x)
+    """
+    pdf0 = make_pdf(cmp0)
+    pdf1 = make_pdf(cmp1)
+    def p(x):
+        p0=pi0*pdf0(x)
+        p1=pi1*pdf1(x)
+        return p1/(p1+p0)
+
+    return p
+
+negative_gm = GaussianMixture(n_components=2)
+negative_gm.fit(negative.loc[:,'a1':'a3'])
+positive_gm = GaussianMixture(n_components=2)
+positive_gm.fit(positive.loc[:,'a1':'a3'])
+
+mgd_predict_proba = make_predict_proba(negative_gm, positive_gm, 0.5, 0.5)
+mgd_t = mgd_predict_proba(test_data.loc[:,'a1':'a3'])
+
+mgd_fprs, mgd_tprs, mgd_thds = roc_curve(test_data['counterfeit'], mgd_t)
+mgd_auc = roc_auc_score(test_data['counterfeit'], mgd_t)
+mgd_tnr, mgd_fpr, mgd_fnr, mgd_tpr = confusion_matrix(test_data['counterfeit'], mgd_t>0.5, normalize='true').ravel()
+mgd_f1_s = f1_score(test_data['counterfeit'], mgd_t>0.5)
+mgd_precision_s = precision_score(test_data['counterfeit'], mgd_t>0.5)
+sb.glue('B_scores',[mgd_tnr, mgd_fpr, mgd_fnr, mgd_tpr, mgd_precision_s, mgd_f1_s, mgd_auc], display=True)
+
+#sb.glue('B_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc'], display=True)
+
 ```
 
 also please save the ROC plot
 
 ```{python}
-fig, ax = plt.subplots()
+print("Plot:")
 #plot ROCs (for A and B problems)
-ax.plot([0,1],[0,1]);
+fig, axes = plt.subplots(figsize=[12,12])
+axes.set_title("ROC:", fontsize=14)
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+axes.set_xlabel('FPR')
+axes.set_ylabel('TPR')
+add_roc_curve(test_data['counterfeit'], proba_test, name='QDA', ax=axes, color='yellow')
+add_roc_curve(test_data['counterfeit'], mgd_t, name='MGDA', ax=axes, color='green')
+axes.legend(title='AUC')
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+axes.plot([0,1],[0,1],  linewidth=3, linestyle='--',color='gray')
 sb.glue('B_ROC',fig, "display", display=False);
+
 ```
 
 ### C.
@@ -85,23 +184,83 @@ Use k-fold cross validation to find the optimal number of gaussian components fo
 __Hint__ use the `StratifiedKFold` function from scikit-learn library to generate folds. 
 
 ```{python}
-#  store the results of the best fit 
-sb.glue("C_n_cmp",['n_cmp_pos', 'n_cmp_neg', 'best_f1_score'])
+#Functions from 05 gaussian mixture model EM algorithm lecture
+def evaluate(nc0, nc1,X,y, X_valid, y_valid):
+
+    hc0_cmp = GaussianMixture(n_components=nc0, max_iter=100, tol=0.0001)
+    hc1_cmp = GaussianMixture(n_components=nc1, max_iter=100, tol=0.0001)
+
+    hc0 = X[y==0]
+    hc1 = X[y==1]
+
+    hc0_cmp.fit(hc0)
+    hc1_cmp.fit(hc1)
+
+    gmda =  make_predict_proba(hc0_cmp, hc1_cmp, 0.5, 0.5)
+    proba = gmda(X_valid)
+
+    return f1_score(y_valid, proba>0.5)
+
+max_i = 2
+max_j = 2
+max_v = 0.0
+for i in range(2, 13):
+    for j in range(2, 13):
+        v = evaluate(i, j, train_data.iloc[:,0:3], train_data["counterfeit"], test_data.iloc[:,0:3], test_data["counterfeit"])
+        if v > max_v:
+            max_v = v
+            max_i = i
+            max_j = j
+
+
+#  store the results of the best fit
+sb.glue("C_n_cmp",[max_i, max_j, max_v], display=True)
+
 ```
 
 Store the results for the best estimator
 
 ```{python}
-sb.glue('C_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc'], display=True)
+
+best_neg = GaussianMixture(n_components=max_i, max_iter=100, tol=0.0001).fit(negative.loc[:,'a1':'a3'])
+best_pos = GaussianMixture(n_components=max_j, max_iter=100, tol=0.0001).fit(positive.loc[:,'a1':'a3'])
+best_mgd_predict_proba = make_predict_proba(best_neg, best_pos, 0.5, 0.5)
+best_mgd_t = best_mgd_predict_proba(test_data.loc[:,"a1":"a3"])
+pd.DataFrame(confusion_matrix(test_data["counterfeit"], best_mgd_t>0.5, normalize='true'))
+best_auc = roc_auc_score(test_data['counterfeit'], best_mgd_t)
+best_f1_s = f1_score(test_data['counterfeit'], best_mgd_t>0.5)
+best_precision_s = precision_score(test_data['counterfeit'], best_mgd_t>0.5)
+best_tnr, best_fpr, best_fnr, best_tpr = confusion_matrix(test_data.counterfeit == 1, best_mgd_t>0.5, normalize='true').ravel()
+fprs_best, tprs_best, thds_best = roc_curve(test_data["counterfeit"], best_mgd_t)
+
+sb.glue('C_scores',[best_tnr, best_fpr, best_fnr, best_tpr, best_precision_s, best_f1_s, best_auc], display=True)
+
 ```
 
 also please save the ROC plot
 
 ```{python}
-fig, ax = plt.subplots()
+print("Plot:")
 #plot ROCs (for A and B  Cproblems)
-ax.plot([0,1],[0,1]);
-sb.glue('C_ROC',fig, "display", display=False);
+fig, axes = plt.subplots(figsize=[12,12])
+axes.set_title("ROC:", fontsize=14)
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+axes.set_xlabel('FPR')
+axes.set_ylabel('TPR')
+
+add_roc_curve(test_data['counterfeit'], proba_test, name='QDA', ax=axes, color='yellow')
+add_roc_curve(test_data['counterfeit'], mgd_t, name='MGDA', ax=axes, color='green')
+add_roc_curve(test_data['counterfeit'], best_mgd_t , name='BEST QDA', ax=axes, color='red')
+
+axes.legend(title='AUC')
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+axes.plot([0,1],[0,1], linewidth=3, linestyle='--', color='gray')
+sb.glue('C_ROC',fig, "display", display=False)
+
+
 ```
 
 ## D.  
@@ -110,24 +269,74 @@ sb.glue('C_ROC',fig, "display", display=False);
 Assume that 1% of all the customers in your store try to pay with a counterfeit 100PLN bill. If you accept the counterfeit bill you loose 100PLN. If you reject a valid bill,  you may loose the purchase, you estimate this loss as 15PLN on average. For each of the three classifiers find the threshold that minimises your losses and calculates the minimum loss for each classifier. Show the optimal classifiers points on the ROC curves.
 
 ```{python}
-sb.glue('D_A_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc', 'min_loss', 'threshold'], display=True)
+def score(fpr_data, fnr_data):
+    return fnr_data * 0.01 * 100 + fpr_data * 0.99 * 15
+
+def optimal(fprs_data, tprs_data, thds_data):
+    minimum_loss = 1
+    index = 0
+    for i, _ in enumerate(thds_data):
+            s=score(fprs_data[i], 1-tprs_data[i])
+            if s<minimum_loss:
+                minimum_loss=s
+                index=i
+    tnr = 1 - fprs_data[index]
+    fpr = fprs_data[index]
+    fnr = 1 - tprs_data[index]
+    tpr = tprs_data[index]
+    threshold = thds_data[index]
+    precision_s = precision_score(test_data['counterfeit'], proba_test>threshold)
+    f1_s = f1_score(test_data['counterfeit'], proba_test>threshold)
+    auc_optimal = roc_auc_score(test_data['counterfeit'], proba_test)
+    return tnr, fpr, fnr, tpr, precision_s, f1_s, auc_optimal, minimum_loss, threshold
+
+tnr, fpr, fnr, tpr, precision_s, f1_s, auc_optimal, min_loss, threshold = optimal(fprs,tprs,thds)
+sb.glue('D_A_scores',[tnr, fpr, fnr, tpr, precision_s, f1_s, auc_optimal, min_loss, threshold], display=True)
 ```
 
 ```{python}
-sb.glue('D_B_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc', 'min_loss', 'threshold'], display=True)
+mgd_tnr, mgd_fpr, mgd_fnr, mgd_tpr, mgd_precision_s, mgd_f1_s, mgd_auc, mgd_min_loss, mgd_threshold = optimal(mgd_fprs,mgd_tprs,mgd_thds)
+sb.glue('D_B_scores',[mgd_tnr, mgd_fpr, mgd_fnr, mgd_tpr, mgd_precision_s, mgd_f1_s, mgd_auc, mgd_min_loss, mgd_threshold], display=True)
 ```
 
 ```{python}
-sb.glue('D_C_scores',['tnr', 'fpr', 'fnr', 'tpr', 'precision', 'f1', 'auc', 'min_loss', 'threshold'], display=True)
+tnr_best, fpr_best, fnr_best, tpr_best, precision_s_best, f1_s_best, auc_best, min_loss_best, threshold_best = optimal(fprs_best, tprs_best, thds_best)
+sb.glue('D_C_scores',[tnr_best, fpr_best, fnr_best, tpr_best, precision_s_best, f1_s_best, auc_best, min_loss_best, threshold_best], display=True)
 ```
 
 also please save the ROC plot
 
 ```{python}
-fig, ax = plt.subplots()
-#plot ROCs
-ax.plot([0,1],[0,1]);
-sb.glue('D_ROC',fig, "display", display=False);
+print("Plot:")
+
+fig, axes = plt.subplots(figsize=[12,12])
+axes.set_title("ROC:", fontsize=14)
+fig.patch.set_facecolor('blue')
+fig.patch.set_alpha(0.6)
+axes.patch.set_facecolor('white')
+axes.patch.set_alpha(0.9)
+
+axes.plot(fprs, tprs, label="QDA", color='yellow')
+axes.scatter([fpr],[tpr], s=50, color='black')
+axes.plot(mgd_fprs, mgd_tprs, label="MGDA", color='green')
+axes.scatter([mgd_fpr],[mgd_tpr], s = 50, color='black')
+axes.plot(fprs_best, tprs_best, label="BEST QDA", color='red')
+axes.scatter([fprs_best],[tprs_best], s = 50, color='black')
+
+axes.legend(title='AUC')
+axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
+axes.plot([0,1],[0,1], linewidth=3, linestyle='--', color='gray')
+sb.glue('D_ROC',fig, "display", display=False)
+
+
+```
+
+```{python}
+
+```
+
+```{python}
+
 ```
 
 ```{python}

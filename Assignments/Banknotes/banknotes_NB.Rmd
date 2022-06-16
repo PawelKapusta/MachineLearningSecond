@@ -106,7 +106,7 @@ len(data_train)
 ## Problem 1
 
 
-Implement Gaussian  Bayes classifier using only one feature. Which feature will you choose? Calculate the confusion matrix (normalized as to show rates), ROC AUC score and plot ROC curve. Do this bot for training and validation set. Plot both curves on the same plot. Save everything using `scrapbook`. 
+Implement Gaussian  Bayes classifier using only one feature. Which feature will you choose? Calculate the confusion matrix (normalized as to show rates), ROC AUC score and plot ROC curve. Do this bot for training and validation set. Plot both curves on the same plot. Save everything using `scrapbook`.
 
 
 __Hint__ For calculating metrics and plotting ROC curves you may use functions from scikit-learn: `roc_curve`, `roc_auc_score` and `confusion matrix`. For estimating normal distribution parameters  use `norm.fit` `from scipy.stats`. Use `norm.pdf` for normal probability density function.
@@ -209,8 +209,7 @@ axes.patch.set_facecolor('white')
 axes.patch.set_alpha(0.9)
 axes.plot(fprs_t, tprs_t, color='red', label="One feature")
 axes.plot(fprs_t_2, tprs_t_2, color='green', label="Two features")
-axes.text(0.7, 0.3, "Value auc train = {:4.4f}".format(auc_t_2), fontsize=12)
-axes.text(0.7, 0.25, "Value auc test = {:4.4f}".format(auc_t_2 - auc_t), fontsize=12)
+axes.text(0.7, 0.3, "Value auc = {:4.4f}".format(auc_t_2), fontsize=12)
 axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
 sb.glue('ROC',fig, "display", display=False)
 
@@ -266,8 +265,15 @@ axes.plot(fprs_t, tprs_t, color='red', label="One feature")
 axes.plot(fprs_t_2, tprs_t_2, color='green', label="Two features")
 axes.plot(fprs_all_t, tprs_all_t, color='yellow', label="All features")
 axes.text(0.65, 0.3, "Value auc = {:4.4f}".format(auc_all_t), fontsize=12)
-axes.text(0.65, 0.25, "Value advance auc = {:4.4f}".format(auc_all_t - auc_t_2), fontsize=12)
 axes.legend(loc='lower right', bbox_to_anchor=(0.95, 0.15))
 sb.glue('ROC',fig, "display", display=False)
+
+```
+
+```{python}
+
+```
+
+```{python}
 
 ```
