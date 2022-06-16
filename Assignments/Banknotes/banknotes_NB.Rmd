@@ -13,11 +13,6 @@ jupyter:
     name: python3
 ---
 
-```{python}
----
-output: github_document
----
-```
 
 ```{python}
 # Counterfeit detection
