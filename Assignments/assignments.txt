@@ -1,0 +1,11 @@
+Banknotes 
+
+24points
+
+OK but very "messy" and hard to read. In gmda  problem D optimmum points are not marked. I take one point for that. 
+
+
+
+Cinderella 
+
+Please estimate the number of clusters. Make a guess based on your plot. 
