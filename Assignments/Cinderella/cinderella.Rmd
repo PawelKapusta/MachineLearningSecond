@@ -75,6 +75,10 @@ axes.patch.set_alpha(0.9)
 axes.plot(range(start, stop), test_scores.values(), color='red')
 ```
 
+```{python}
+print('I guess the answer is 4 clusters')
+```
+
 ### Bonus question
 
 <!-- #region tags=["problem"] -->
