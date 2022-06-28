@@ -8,4 +8,9 @@ OK but very "messy" and hard to read. In gmda  problem D optimmum points are not
 
 Cinderella 
 
-Please estimate the number of clusters. Make a guess based on your plot. 
+5
+
+
+
+
+
